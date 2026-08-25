@@ -1,0 +1,120 @@
+name: continuity-lab
+
+x-common: &common
+  build:
+    context: ..
+    dockerfile: deploy/Dockerfile
+  restart: unless-stopped
+  environment: &common-env
+    CONTINUITY_BUCKET: ${CONTINUITY_BUCKET:-continuity-lab}
+    CONTINUITY_GATEWAY_URL: ${CONTINUITY_GATEWAY_URL:-http://localhost:8080}
+    CONTINUITY_GOSSIP_SECRET: ${CONTINUITY_GOSSIP_SECRET:-local-development-secret-change-me}
+    CONTINUITY_ALLOW_STALE_READS: ${CONTINUITY_ALLOW_STALE_READS:-false}
+    CONTINUITY_CAS_MAX_RETRIES: ${CONTINUITY_CAS_MAX_RETRIES:-16}
+    CONTINUITY_READ_REPLICA_COUNT: ${CONTINUITY_READ_REPLICA_COUNT:-3}
+    CONTINUITY_MAX_REFS_PER_PUSH: ${CONTINUITY_MAX_REFS_PER_PUSH:-1024}
+    CONTINUITY_RECEIVE_MAX_INPUT_SIZE: ${CONTINUITY_RECEIVE_MAX_INPUT_SIZE:-1073741824}
+    CONTINUITY_SNAPSHOT_ENTRY_THRESHOLD: ${CONTINUITY_SNAPSHOT_ENTRY_THRESHOLD:-50}
+    CONTINUITY_SNAPSHOT_BYTE_THRESHOLD: ${CONTINUITY_SNAPSHOT_BYTE_THRESHOLD:-268435456}
+    CONTINUITY_GC_GRACE_PERIOD: ${CONTINUITY_GC_GRACE_PERIOD:-1h}
+    CONTINUITY_LAB_MODE: "true"
+    CONTINUITY_NODES: node-a=http://node-a:8080,node-b=http://node-b:8080,node-c=http://node-c:8080
+    MINIO_ROOT_USER: ${MINIO_ROOT_USER:-continuity}
+    MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-continuity-local-password}
+    S3_ENDPOINT: http://minio:9000
+    S3_REGION: ${S3_REGION:-us-east-1}
+    S3_FORCE_PATH_STYLE: "true"
+  depends_on:
+    minio:
+      condition: service_healthy
+  networks: [continuity]
+
+services:
+  minio:
+    image: ${MINIO_IMAGE:-quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z}
+    command: server /data --console-address :9001
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-continuity}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-continuity-local-password}
+    ports:
+      - "127.0.0.1:9000:9000"
+      - "127.0.0.1:9001:9001"
+    volumes: [minio-data:/data]
+    healthcheck:
+      test: [CMD, mc, ready, local]
+      interval: 2s
+      timeout: 2s
+      retries: 30
+    networks: [continuity]
+
+  gateway:
+    <<: *common
+    command: [gateway]
+    environment:
+      <<: *common-env
+      CONTINUITY_LISTEN_ADDR: :8080
+    ports: ["127.0.0.1:8080:8080"]
+    healthcheck:
+      test: [CMD, curl, -fsS, http://localhost:8080/readyz]
+      interval: 2s
+      timeout: 2s
+      retries: 30
+
+  node-a:
+    <<: *common
+    command: [node]
+    environment:
+      <<: *common-env
+      CONTINUITY_NODE_ID: node-a
+      CONTINUITY_LISTEN_ADDR: :8080
+      CONTINUITY_DATA_DIR: /var/lib/continuity
+      CONTINUITY_GOSSIP_PEERS: node-b:7946,node-c:7946
+    ports: ["127.0.0.1:18081:8080"]
+    volumes: [node-a-data:/var/lib/continuity]
+    healthcheck:
+      test: [CMD, curl, -fsS, http://localhost:8080/readyz]
+      interval: 2s
+      timeout: 2s
+      retries: 30
+
+  node-b:
+    <<: *common
+    command: [node]
+    environment:
+      <<: *common-env
+      CONTINUITY_NODE_ID: node-b
+      CONTINUITY_LISTEN_ADDR: :8080
+      CONTINUITY_DATA_DIR: /var/lib/continuity
+      CONTINUITY_GOSSIP_PEERS: node-a:7946,node-c:7946
+    ports: ["127.0.0.1:18082:8080"]
+    volumes: [node-b-data:/var/lib/continuity]
+    healthcheck:
+      test: [CMD, curl, -fsS, http://localhost:8080/readyz]
+      interval: 2s
+      timeout: 2s
+      retries: 30
+
+  node-c:
+    <<: *common
+    command: [node]
+    environment:
+      <<: *common-env
+      CONTINUITY_NODE_ID: node-c
+      CONTINUITY_LISTEN_ADDR: :8080
+      CONTINUITY_DATA_DIR: /var/lib/continuity
+      CONTINUITY_GOSSIP_PEERS: node-a:7946,node-b:7946
+    ports: ["127.0.0.1:18083:8080"]
+    volumes: [node-c-data:/var/lib/continuity]
+    healthcheck:
+      test: [CMD, curl, -fsS, http://localhost:8080/readyz]
+      interval: 2s
+      timeout: 2s
+      retries: 30
+
+networks:
+  continuity: {}
+volumes:
+  minio-data: {}
+  node-a-data: {}
+  node-b-data: {}
+  node-c-data: {}
