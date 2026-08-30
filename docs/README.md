@@ -9,7 +9,8 @@ English is the default language for project documentation, source comments, conf
 - [Protocol notes](protocol.md)
 - [Failure model](failure-model.md)
 - [Operations](operations.md)
-- [Implementation status and test evidence](../IMPLEMENTATION_STATUS.md)
+
+Interface screenshots used by the project README live in [`images/`](images/). They are captured from a real bootstrapped cluster, not mocked.
 
 ### Architecture decisions
 

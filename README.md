@@ -2,6 +2,10 @@
 
 Continuity Lab is an original, local, educational reinterpretation of public disposable-node Git/WAL ideas. It is **not affiliated with Cursor**, is not an official Cursor product, and contains no proprietary Cursor code. It is a laboratory, not an Internet-facing production service.
 
+Three Git nodes serve real `git clone`, `fetch`, and `push` over Smart HTTP. None of them is authoritative. Object storage holds the only durable truth, and a push becomes visible when exactly one conditional write wins.
+
+![Continuity Git repository list](docs/images/01-repositories.png)
+
 ## Architecture
 
 ```mermaid
@@ -60,9 +64,43 @@ make demo
 make test-all
 ```
 
-Open **<http://localhost:8080>** for Continuity Git, the React repository explorer. It creates and lists repositories, browses branches, tags, directories and files, previews README documents, displays commit history and details, and edits or creates UTF-8 files with a lazy-loaded CodeMirror editor. Web edits commit directly to the selected branch with optimistic base-OID checks and are published through real Smart HTTP, hooks, WAL, and CAS. Operational concerns are intentionally separated into the read-only **Continuity Admin** console at **<http://localhost:8080/admin>**, which shows real gateway node health, aggregate authoritative WAL history, and logical MinIO repository records. The production bundle is embedded in the gateway binary; `/api/v1` and `/git` retain their existing routes.
-
 Services bind to loopback: gateway 8080, MinIO 9000/9001, and direct nodes 18081–18083. Development credentials are intentionally insecure and must never be reused.
+
+## Continuity Git — the repository explorer
+
+Open **<http://localhost:8080>**. The React explorer creates and lists repositories, browses branches, tags, directories, and files, and previews README documents. The production bundle is embedded in the gateway binary; `/api/v1` and `/git` retain their existing routes.
+
+![Repository code browser with README preview](docs/images/02-code-browser.png)
+
+Files are served from the same authoritative state a `git clone` would see. Nothing is rendered from a local cache that has not been revalidated against MinIO first.
+
+![Source file view](docs/images/03-file-view.png)
+
+Commit history and commit details are read through the node's Git object database after `EnsureFresh` confirms the cache matches `head.json`.
+
+![Commit history](docs/images/04-commit-history.png)
+
+A lazy-loaded CodeMirror editor creates or edits UTF-8 files. Web edits commit directly to the selected branch with optimistic base-OID checks, and they are published through real Smart HTTP, real hooks, the WAL, and the same `head.json` CAS as any external client. A stale base OID returns HTTP 409.
+
+![Web editor committing to a branch](docs/images/05-web-editor.png)
+
+## Continuity Admin — the operations console
+
+Operational concerns are intentionally separated into the read-only console at **<http://localhost:8080/admin>**. It shows real gateway node health, aggregate authoritative WAL history, and logical MinIO repository records — no mutating actions are exposed.
+
+![Admin overview](docs/images/06-admin-overview.png)
+
+Every node is an independent, disposable cache. Any of them can be evicted or destroyed and rebuilt from a snapshot plus the committed WAL tail.
+
+![Disposable Git nodes](docs/images/07-admin-nodes.png)
+
+The WAL view is the clearest picture of how the system commits: one global sequence per repository, the exact ref updates each entry published, and which node won the CAS that made it visible.
+
+![Authoritative commit log](docs/images/08-admin-wal.png)
+
+Storage shows the logical durable records — one immutable `manifest.json` per repository, one mutable `head.json` replaced only through CAS, and the committed WAL history behind them.
+
+![Authoritative MinIO records](docs/images/09-admin-storage.png)
 
 ## Manual Git demo
 

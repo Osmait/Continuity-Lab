@@ -1021,8 +1021,7 @@ secreto incluidos son solo para desarrollo local.
 ├── tests/integration/        # integración Git + MinIO
 ├── deploy/                   # Dockerfile y Compose completo
 ├── docs/                     # arquitectura, protocolo, ADR y operaciones
-├── Makefile
-└── IMPLEMENTATION_STATUS.md
+└── Makefile
 ```
 
 ### Dependencias conceptuales
@@ -1077,9 +1076,6 @@ El gate de aceptación desde estado limpio es:
 ```sh
 make reset && make bootstrap && make test-all && make demo
 ```
-
-El estado y la evidencia de cada fase se documentan en
-[`IMPLEMENTATION_STATUS.md`](../../IMPLEMENTATION_STATUS.md).
 
 ### 21.4 Microbenchmark
 
